@@ -1,7 +1,7 @@
 'use client'
 import { useState } from "react";
 import { useGPS } from "./hooks/useGPS";
-import { calculateStats } from "./lib/rideStats";
+import { calculateStats, RideStats } from "./lib/rideStats";
 import dynamic from "next/dynamic";
 
 const RideMap = dynamic(() => import("./components/Map"), { ssr: false });
@@ -10,6 +10,8 @@ interface Coordinate {
   lat: number;
   lng: number;
   timestamp: number;
+  elevation?: number;
+  heartRate?: number;
 }
 
 function parseGPX(gpxText: string): Coordinate[] {
@@ -18,13 +20,19 @@ function parseGPX(gpxText: string): Coordinate[] {
   const points = xml.querySelectorAll("trkpt");
   const coords: Coordinate[] = [];
   let time = Date.now();
+
   points.forEach((point) => {
     const lat = parseFloat(point.getAttribute("lat") || "0");
     const lng = parseFloat(point.getAttribute("lon") || "0");
     const timeEl = point.querySelector("time");
+    const elevEl = point.querySelector("ele");
+    const hrEl = point.querySelector("extensions hr, heartrate, hr");
     const timestamp = timeEl ? new Date(timeEl.textContent || "").getTime() : time++;
-    coords.push({ lat, lng, timestamp });
+    const elevation = elevEl ? parseFloat(elevEl.textContent || "0") : 0;
+    const heartRate = hrEl ? parseInt(hrEl.textContent || "0") : 0;
+    coords.push({ lat, lng, timestamp, elevation, heartRate });
   });
+
   return coords;
 }
 
@@ -34,49 +42,35 @@ export default function Home() {
   const [loadingFeedback, setLoadingFeedback] = useState(false);
   const [rideStartTime, setRideStartTime] = useState<Date | null>(null);
   const [gpxCoordinates, setGpxCoordinates] = useState<Coordinate[]>([]);
-  const [gpxStats, setGpxStats] = useState<{ distance: string; duration: string; averageSpeed: string; } | null>(null);
+  const [displayStats, setDisplayStats] = useState<RideStats | null>(null);
 
   const activeCoordinates = gpxCoordinates.length > 0 ? gpxCoordinates : coordinates;
-  const stats = coordinates.length > 1 ? calculateStats(coordinates, rideStartTime) : null;
-  const displayStats = gpxStats || stats;
+  const liveStats = coordinates.length > 1 ? calculateStats(coordinates, rideStartTime) : null;
 
   const handleStart = () => {
     setRideStartTime(new Date());
     setGpxCoordinates([]);
-    setGpxStats(null);
+    setDisplayStats(null);
     setAiFeedback("");
     startTracking();
   };
 
   const handleStop = async () => {
     stopTracking();
-    if (!stats) {
+    if (!liveStats) {
       setAiFeedback("Not enough GPS data collected. Try riding for longer before stopping.");
       return;
     }
-    setLoadingFeedback(true);
-    try {
-      const res = await fetch("/api", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(stats),
-      });
-      const data = await res.json();
-      setAiFeedback(data.feedback);
-    } catch {
-      setAiFeedback("Could not get feedback. Please try again.");
-    } finally {
-      setLoadingFeedback(false);
-    }
+    setDisplayStats(liveStats);
+    await sendToAI(liveStats);
   };
 
   const handleGPXUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     setAiFeedback("");
     setGpxCoordinates([]);
-    setGpxStats(null);
+    setDisplayStats(null);
 
     const text = await file.text();
     const gpxCoords = parseGPX(text);
@@ -88,16 +82,18 @@ export default function Home() {
 
     const gpxStartTime = new Date(gpxCoords[0].timestamp);
     const calculated = calculateStats(gpxCoords, gpxStartTime);
-
     setGpxCoordinates(gpxCoords);
-    setGpxStats(calculated);
-    setLoadingFeedback(true);
+    setDisplayStats(calculated);
+    await sendToAI(calculated);
+  };
 
+  const sendToAI = async (stats: RideStats) => {
+    setLoadingFeedback(true);
     try {
       const res = await fetch("/api", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(calculated),
+        body: JSON.stringify(stats),
       });
       const data = await res.json();
       setAiFeedback(data.feedback);
@@ -131,18 +127,49 @@ export default function Home() {
       <RideMap coordinates={activeCoordinates} />
 
       {displayStats && (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: "1rem", marginBottom: "2rem" }}>
-          <div style={{ background: "#f8f9fa", borderRadius: 10, padding: "1rem", textAlign: "center" }}>
-            <div style={{ fontSize: "0.75rem", color: "#888" }}>DISTANCE</div>
-            <div style={{ fontSize: "1.5rem", fontWeight: 700 }}>{displayStats.distance} km</div>
+        <div style={{ marginBottom: "2rem" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: "1rem", marginBottom: "1rem" }}>
+            <div style={{ background: "#f8f9fa", borderRadius: 10, padding: "1rem", textAlign: "center" }}>
+              <div style={{ fontSize: "0.75rem", color: "#888" }}>DISTANCE</div>
+              <div style={{ fontSize: "1.5rem", fontWeight: 700 }}>{displayStats.distance} km</div>
+            </div>
+            <div style={{ background: "#f8f9fa", borderRadius: 10, padding: "1rem", textAlign: "center" }}>
+              <div style={{ fontSize: "0.75rem", color: "#888" }}>DURATION</div>
+              <div style={{ fontSize: "1.5rem", fontWeight: 700 }}>{displayStats.duration} min</div>
+            </div>
+            <div style={{ background: "#f8f9fa", borderRadius: 10, padding: "1rem", textAlign: "center" }}>
+              <div style={{ fontSize: "0.75rem", color: "#888" }}>AVG SPEED</div>
+              <div style={{ fontSize: "1.5rem", fontWeight: 700 }}>{displayStats.averageSpeed} km/h</div>
+            </div>
           </div>
-          <div style={{ background: "#f8f9fa", borderRadius: 10, padding: "1rem", textAlign: "center" }}>
-            <div style={{ fontSize: "0.75rem", color: "#888" }}>DURATION</div>
-            <div style={{ fontSize: "1.5rem", fontWeight: 700 }}>{displayStats.duration} min</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: "1rem", marginBottom: "1rem" }}>
+            <div style={{ background: "#f8f9fa", borderRadius: 10, padding: "1rem", textAlign: "center" }}>
+              <div style={{ fontSize: "0.75rem", color: "#888" }}>TOTAL CLIMB</div>
+              <div style={{ fontSize: "1.5rem", fontWeight: 700 }}>{displayStats.totalClimb}m</div>
+            </div>
+            <div style={{ background: "#f8f9fa", borderRadius: 10, padding: "1rem", textAlign: "center" }}>
+              <div style={{ fontSize: "0.75rem", color: "#888" }}>MAX ELEVATION</div>
+              <div style={{ fontSize: "1.5rem", fontWeight: 700 }}>{displayStats.maxElevation}m</div>
+            </div>
+            <div style={{ background: "#f8f9fa", borderRadius: 10, padding: "1rem", textAlign: "center" }}>
+              <div style={{ fontSize: "0.75rem", color: "#888" }}>AVG HEART RATE</div>
+              <div style={{ fontSize: "1.5rem", fontWeight: 700 }}>
+                {displayStats.avgHeartRate !== "0" ? `${displayStats.avgHeartRate} bpm` : "N/A"}
+              </div>
+            </div>
           </div>
-          <div style={{ background: "#f8f9fa", borderRadius: 10, padding: "1rem", textAlign: "center" }}>
-            <div style={{ fontSize: "0.75rem", color: "#888" }}>AVG SPEED</div>
-            <div style={{ fontSize: "1.5rem", fontWeight: 700 }}>{displayStats.averageSpeed} km/h</div>
+          <div style={{ background: "#f8f9fa", borderRadius: 10, padding: "1rem" }}>
+            <div style={{ fontSize: "0.75rem", color: "#888", marginBottom: "0.5rem" }}>EFFORT ZONES</div>
+            <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+              <div style={{ flex: parseInt(displayStats.speedZones.easy), background: "#22c55e", height: 12, borderRadius: 4 }} />
+              <div style={{ flex: parseInt(displayStats.speedZones.moderate), background: "#f59e0b", height: 12, borderRadius: 4 }} />
+              <div style={{ flex: parseInt(displayStats.speedZones.hard), background: "#ef4444", height: 12, borderRadius: 4 }} />
+            </div>
+            <div style={{ display: "flex", gap: "1rem", marginTop: "0.5rem", fontSize: "0.75rem", color: "#666" }}>
+              <span>🟢 Easy {displayStats.speedZones.easy}%</span>
+              <span>🟡 Moderate {displayStats.speedZones.moderate}%</span>
+              <span>🔴 Hard {displayStats.speedZones.hard}%</span>
+            </div>
           </div>
         </div>
       )}
@@ -150,7 +177,11 @@ export default function Home() {
       <div style={{ background: "#f0fdf4", borderRadius: 12, padding: "1.5rem", border: "1px solid #bbf7d0" }}>
         <h2 style={{ color: "#15803d", margin: "0 0 1rem" }}>AI Coach Feedback</h2>
         {loadingFeedback && <p style={{ color: "#15803d", margin: 0 }}>Analysing your ride...</p>}
-        {aiFeedback && <p style={{ lineHeight: 1.7, margin: 0 }}>{aiFeedback}</p>}
+        {aiFeedback && (
+          <div style={{ lineHeight: 1.8, whiteSpace: "pre-wrap", margin: 0 }}>
+            {aiFeedback}
+          </div>
+        )}
         {!aiFeedback && !loadingFeedback && (
           <p style={{ color: "#6b7280", fontStyle: "italic", margin: 0 }}>
             Start a live ride or upload a GPX file to get feedback.

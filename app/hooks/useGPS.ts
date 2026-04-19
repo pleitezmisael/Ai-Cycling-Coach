@@ -4,6 +4,8 @@ export interface Coordinate {
   lat: number;
   lng: number;
   timestamp: number;
+  elevation?: number;
+  heartRate?: number;
 }
 
 export function useGPS() {
