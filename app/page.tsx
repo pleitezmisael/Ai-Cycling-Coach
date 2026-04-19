@@ -21,16 +21,13 @@ export default function Home() {
 
 const handleStop = async () => {
     stopTracking();
+    if (!stats) return;
     setLoadingFeedback(true);
     try {
       const res = await fetch("/api", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          distance: "10.5",
-          duration: "35.0",
-          averageSpeed: "18.0",
-        }),
+        body: JSON.stringify(stats),
       });
       const data = await res.json();
       setAiFeedback(data.feedback);
