@@ -2,6 +2,9 @@
 import { useState } from "react";
 import { useGPS } from "./hooks/useGPS";
 import { calculateStats } from "./lib/rideStats";
+import dynamic from "next/dynamic";
+
+const RideMap = dynamic(() => import("./components/Ridemap"), { ssr: false });
 
 export default function Home() {
   const { isTracking, coordinates, startTracking, stopTracking } = useGPS();
@@ -53,6 +56,8 @@ const handleStop = async () => {
           ■ Stop Ride
         </button>
       </div>
+
+      <RideMap coordinates={coordinates} />
 
       {stats && (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: "1rem", marginBottom: "2rem" }}>
