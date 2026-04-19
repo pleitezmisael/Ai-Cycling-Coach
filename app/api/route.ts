@@ -12,41 +12,57 @@ export async function POST(request: Request) {
         ).join("\n")
       : "No significant climbs detected";
 
-    const prompt = `You are an elite cycling coach with 20 years experience training endurance athletes.
+    const p = stats.profile || {};
+const riderInfo = `
+RIDER PROFILE:
+- Name: ${p.name || "Rider"}
+- Age: ${p.age ? p.age + " years old" : "not specified"}
+- Weight: ${p.weight ? p.weight + "lb" : "not specified"}
+- Height: ${p.height ? p.height + "feet" : "not specified"}
+- FTP: ${p.ftp ? p.ftp + " watts" : "not recorded"}
+- Experience: ${p.experience || "Beginner"}
+- Cycling type: ${p.cyclingType || "Road cycling"}
+- Training days per week: ${p.daysPerWeek || "2-3 days"}
+- Main goal: ${p.goal || "Build endurance"}
+`;
 
-Analyse this ride in detail and provide specific, actionable coaching feedback:
+const prompt = `You are an elite cycling coach with 20 years experience.
+
+${riderInfo}
 
 RIDE DATA:
 - Distance: ${stats.distance} km
-- Duration: ${stats.duration} minutes  
+- Duration: ${stats.duration} minutes
 - Average Speed: ${stats.averageSpeed} km/h
 - Total Elevation Gain: ${stats.totalClimb}m
 - Max Elevation: ${stats.maxElevation}m
-- Min Elevation: ${stats.minElevation}m
 - Avg Heart Rate: ${stats.avgHeartRate > 0 ? stats.avgHeartRate + " bpm" : "not recorded"}
-- Speed Zones: ${stats.speedZones.easy}% easy, ${stats.speedZones.moderate}% moderate, ${stats.speedZones.hard}% hard effort
+- Speed Zones: ${stats.speedZones.easy}% easy, ${stats.speedZones.moderate}% moderate, ${stats.speedZones.hard}% hard
 
 CLIMB ANALYSIS:
 ${climbInfo}
 
-RIDER GOAL: Build endurance
-AVAILABLE TRAINING DAYS: 2-3 days per week
+${p.weight ? `PERFORMANCE METRICS:
+- Estimated calories burned: ${Math.round(parseFloat(stats.duration) * parseFloat(p.weight) * 0.1)} kcal
+- Weight to distance ratio: ${(parseFloat(stats.distance) / parseFloat(p.weight)).toFixed(2)} km/kg` : ""}
+
+Address the rider by name if provided. Give feedback specific to their age, weight, experience level and goal.
 
 Please provide:
 
-1. RIDE ANALYSIS (3-4 sentences)
-Analyse the effort, pacing, climbing performance and where the rider pushed hard vs held back. Be specific about the numbers.
+1. RIDE ANALYSIS
+Analyse this specific ride in detail — pacing, climbing, effort zones. Reference their experience level as a ${p.experience || "beginner"} road cyclist.
 
 2. WHAT YOU DID WELL
-Two specific things based on the data.
+Two specific things based on the data. Be encouraging for their experience level.
 
-3. AREAS TO IMPROVE
-Two specific weaknesses the data reveals with exact advice on how to fix them.
+3. AREAS TO IMPROVE  
+Two specific weaknesses with exact drills or workouts to fix them. Keep it beginner friendly.
 
 4. WEEKLY TRAINING PLAN
-A personalised 7 day plan based on this ride and their goal of building endurance on 2-3 days per week. For each training day give the session type, duration and specific focus. For rest days just say Rest.
+A personalised ${p.daysPerWeek || "2-3 day"} per week plan for a ${p.experience || "beginner"} focused on ${p.goal || "building endurance"}. Include session type, duration and exact focus for each day.
 
-Format each section with its heading in capitals. Be direct, specific and encouraging like a real coach would be.`;
+Format each section with its heading in capitals. Be warm, specific and encouraging.`;
 
     const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",

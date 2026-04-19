@@ -3,6 +3,8 @@ import { useState } from "react";
 import { useGPS } from "./hooks/useGPS";
 import { calculateStats, RideStats } from "./lib/rideStats";
 import dynamic from "next/dynamic";
+import ProfileForm from "./components/ProfileForm";
+import { RiderProfile, defaultProfile, loadProfile } from "./profile";
 
 const RideMap = dynamic(() => import("./components/Map"), { ssr: false });
 
@@ -43,6 +45,8 @@ export default function Home() {
   const [rideStartTime, setRideStartTime] = useState<Date | null>(null);
   const [gpxCoordinates, setGpxCoordinates] = useState<Coordinate[]>([]);
   const [displayStats, setDisplayStats] = useState<RideStats | null>(null);
+  const [profile, setProfile] = useState<RiderProfile>(defaultProfile);
+  
 
   const activeCoordinates = gpxCoordinates.length > 0 ? gpxCoordinates : coordinates;
   const liveStats = coordinates.length > 1 ? calculateStats(coordinates, rideStartTime) : null;
@@ -93,7 +97,7 @@ export default function Home() {
       const res = await fetch("/api", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(stats),
+        body: JSON.stringify({ ...stats, profile }),
       });
       const data = await res.json();
       setAiFeedback(data.feedback);
@@ -107,7 +111,8 @@ export default function Home() {
   return (
     <main style={{ maxWidth: 640, margin: "0 auto", padding: "2rem", fontFamily: "sans-serif" }}>
       <h1 style={{ fontSize: "2rem", fontWeight: 700, margin: "0 0 0.25rem" }}>AI Cycling Coach</h1>
-      <p style={{ color: "#666", margin: "0 0 2rem" }}>Track your ride. Get coached by AI.</p>
+      <p style={{ color: "#666", margin: "0 0 2rem" }}>Track your ride. Get coached by AI.</p> 
+      <ProfileForm onSave={setProfile} />
 
       <div style={{ display: "flex", gap: "1rem", marginBottom: "2rem", flexWrap: "wrap" }}>
         <button onClick={handleStart} disabled={isTracking}
