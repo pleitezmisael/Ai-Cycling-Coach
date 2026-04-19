@@ -4,7 +4,7 @@ import { useGPS } from "./hooks/useGPS";
 import { calculateStats } from "./lib/rideStats";
 import dynamic from "next/dynamic";
 
-const RideMap = dynamic(() => import("./components/RideMap"), { ssr: false });
+const RideMap = dynamic(() => import("./components/Map"), { ssr: false });
 
 interface Coordinate {
   lat: number;
