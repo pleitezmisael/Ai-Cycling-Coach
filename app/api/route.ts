@@ -26,43 +26,32 @@ RIDER PROFILE:
 - Main goal: ${p.goal || "Build endurance"}
 `;
 
-const prompt = `You are an elite cycling coach with 20 years experience.
+const prompt = `You are an elite cycling coach. Be concise and direct.
 
-${riderInfo}
+RIDER: ${p.name || "Rider"}, ${p.age ? p.age + "yo" : ""}, ${p.weight ? p.weight + "kg" : ""}, ${p.experience || "Beginner"}, Goal: ${p.goal || "Build endurance"}, ${p.daysPerWeek || "2-3"} days/week
 
-RIDE DATA:
-- Distance: ${stats.distance} km
-- Duration: ${stats.duration} minutes
-- Average Speed: ${stats.averageSpeed} km/h
-- Total Elevation Gain: ${stats.totalClimb}m
-- Max Elevation: ${stats.maxElevation}m
-- Avg Heart Rate: ${stats.avgHeartRate > 0 ? stats.avgHeartRate + " bpm" : "not recorded"}
-- Speed Zones: ${stats.speedZones.easy}% easy, ${stats.speedZones.moderate}% moderate, ${stats.speedZones.hard}% hard
+RIDE: ${stats.distance}km in ${stats.duration}min at ${stats.averageSpeed}km/h avg | Climb: ${stats.totalClimb}m | Zones: ${stats.speedZones.easy}% easy, ${stats.speedZones.moderate}% moderate, ${stats.speedZones.hard}% hard ${stats.avgHeartRate !== "0" ? `| HR: ${stats.avgHeartRate}bpm` : ""}
 
-CLIMB ANALYSIS:
-${climbInfo}
+${climbInfo !== "No significant climbs detected" ? `CLIMBS: ${climbInfo}` : ""}
 
-${p.weight ? `PERFORMANCE METRICS:
-- Estimated calories burned: ${Math.round(parseFloat(stats.duration) * parseFloat(p.weight) * 0.1)} kcal
-- Weight to distance ratio: ${(parseFloat(stats.distance) / parseFloat(p.weight)).toFixed(2)} km/kg` : ""}
+Respond in exactly this format — keep each section to 2-3 sentences max:
 
-Address the rider by name if provided. Give feedback specific to their age, weight, experience level and goal.
+RIDE ANALYSIS
+[2-3 sentences analysing this specific ride]
 
-Please provide:
+WHAT YOU DID WELL
+- [specific thing 1]
+- [specific thing 2]
 
-1. RIDE ANALYSIS
-Analyse this specific ride in detail — pacing, climbing, effort zones. Reference their experience level as a ${p.experience || "beginner"} road cyclist.
+AREAS TO IMPROVE
+- [specific weakness + exact drill to fix it]
+- [specific weakness + exact drill to fix it]
 
-2. WHAT YOU DID WELL
-Two specific things based on the data. Be encouraging for their experience level.
+THIS WEEK'S PLAN (${p.daysPerWeek || "2-3"} days)
+${p.daysPerWeek === "4-5 days" ? "Mon/Tue/Thu/Fri/Sat" : "Mon/Wed/Sat"}: [session type — duration — focus]
+[Rest days as Rest]
 
-3. AREAS TO IMPROVE  
-Two specific weaknesses with exact drills or workouts to fix them. Keep it beginner friendly.
-
-4. WEEKLY TRAINING PLAN
-A personalised ${p.daysPerWeek || "2-3 day"} per week plan for a ${p.experience || "beginner"} focused on ${p.goal || "building endurance"}. Include session type, duration and exact focus for each day.
-
-Format each section with its heading in capitals. Be warm, specific and encouraging.`;
+Keep total response under 300 words. Address rider by name if provided.`;
 
     const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
@@ -73,7 +62,7 @@ Format each section with its heading in capitals. Be warm, specific and encourag
       body: JSON.stringify({
         model: "llama-3.3-70b-versatile",
         messages: [{ role: "user", content: prompt }],
-        max_tokens: 1000,
+        max_tokens: 500,
       }),
     });
 
